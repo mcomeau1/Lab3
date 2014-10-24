@@ -8,11 +8,62 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "p24FJ64GA002.h"
+#include "lcd.h"
+
+// ******************************************************************************************* //
+// Configuration bits for CONFIG1 settings.
+//
+// Make sure "Configuration Bits set in code." option is checked in MPLAB.
+//
+// These settings are appropriate for debugging the PIC microcontroller. If you need to
+// program the PIC for standalone operation, change the COE_ON option to COE_OFF.
+
+_CONFIG1( JTAGEN_OFF & GCP_OFF & GWRP_OFF &
+		 BKBUG_ON & COE_ON & ICS_PGx1 &
+		 FWDTEN_OFF & WINDIS_OFF & FWPSA_PR128 & WDTPS_PS32768 )
+
+// ******************************************************************************************* //
+// Configuration bits for CONFIG2 settings.
+// Make sure "Configuration Bits set in code." option is checked in MPLAB.
+
+_CONFIG2( IESO_OFF & SOSCSEL_SOSC & WUTSEL_LEG & FNOSC_PRIPLL & FCKSM_CSDCMD & OSCIOFNC_OFF &
+		 IOL1WAY_OFF & I2C1SEL_PRI & POSCMOD_XT )
+
+// ******************************************************************************************* //
+// Clock constants
+#define XTFREQ          7372800         	  // On-board Crystal frequency
+#define PLLMODE         4               	  // On-chip PLL setting (Fosc)
+#define FCY             (XTFREQ*PLLMODE)/2    // Instruction Cycle Frequency (Fosc/2)
+
+#define BAUDRATE      115200
+#define BRGVAL        ((FCY/BAUDRATE)/16)-1
+
+// ******************************************************************************************* //
+// Varible used to indicate that the current configuration of the keypad has been changed,
+// and the KeypadScan() function needs to be called.
+volatile int scanKeypad = 0;
+
+// ******************************************************************************************* //
 
 /*
  * 
  */
 int main() {
+
+    int ADC_value;
+    char value[8];
+    double AD_value;
+
+    LCDInitialize( );
+
+    AD1PCFGbits.PCFG5;	 	// AN5 input pin is analog
+    AD1CON2 = 0; 		// Configure A/D voltage reference
+    AD1CON3 = 0x0101;
+    AD1CON1 = 0x80E4;
+    AD1CHS = 0; 		// Configure input channels
+    AD1CSSL = 0; 		// No inputs is scanned
+
+    
 
     return 0;
 }
