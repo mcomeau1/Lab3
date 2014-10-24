@@ -1,2 +1,4 @@
 nbproject/
 Makefile
+lcd.c
+lcd.h
