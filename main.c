@@ -33,14 +33,24 @@ _CONFIG2( IESO_OFF & SOSCSEL_SOSC & WUTSEL_LEG & FNOSC_PRIPLL & FCKSM_CSDCMD & O
 // ******************************************************************************************* //
 int main(void){
 	int ADC_value;
+        float temp;
  	char value[8];
-	double AD_value;
+        char period1[5];
+        char period2[5];
         TMR3 = 0;
-        PR3 = 50464;           
+        PR3 = 512;
         IFS0bits.T3IF = 0;
         IEC0bits.T3IE = 1;
-        T3CON = 0x8030;
+        T3CON = 0x0030;
 
+        OC1CON = 0x1D;
+        OC1R = 0;
+        OC1RS = PR3;
+        OC2CON = 0x1D;
+        OC2R = 0;
+        OC2RS = PR3;
+        RPOR4bits.RP8R = 18;
+        RPOR4bits.RP9R = 19;
 	LCDInitialize( );
 
 	AD1PCFG &= 0xFFDF;	 	// AN0 input pin is analog
@@ -51,16 +61,44 @@ int main(void){
 	AD1CSSL = 5; 		// No inputs is scanned
 	IFS0bits.AD1IF = 0; // Clear A/D conversion interrupt.
 	AD1CON1bits.ADON = 1; // Turn on A/D
+        temp = PR3 * 1.0;
 	while(1){
-		while (IFS0bits.AD1IF ==0){};     // AD1CON1bits.DONE can be checked instead
-		IFS0bits.AD1IF = 0;
-		ADC_value = ADC1BUF0;
+            TMR3 = 0;
+            while (IFS0bits.AD1IF ==0){};     // AD1CON1bits.DONE can be checked instead
+            IFS0bits.AD1IF = 0;
+            ADC_value = ADC1BUF0;
+            sprintf(value, "%6d", 1023 - ADC_value);
+            LCDMoveCursor(0,0); LCDPrintString(value);
+            
+            T3CONbits.TON = 1;
+            OC1RS = ADC_value;
+            OC2RS = 1023 - ADC_value;
 
-		sprintf(value, "%6d", 1023 - ADC_value);
-		LCDMoveCursor(0,0); LCDPrintString(value);
+            while(IFS0bits.T3IF == 0);
+            T3CONbits.TON = 0;
+            IFS0bits.T3IF = 0;
+            sprintf(period1, "%.2f", OC1RS/temp);
+            sprintf(period2, "%.2f", OC2RS/temp);
+            if(strcmp(period1, "1.00") > 0)
+            {
+                strcpy(period1,"1.00");
+            }
+            if(strcmp(period2, "1.00") > 0)
+            {
+                strcpy(period2,"1.00");
+            }
+            LCDMoveCursor(1,0); LCDPrintString("        ");
+            LCDMoveCursor(1,0); LCDPrintString(period1);
+            LCDPrintString(period2);
 //		AD_value = (ADC_value * 3.3)/1024;
 //		sprintf(value, "%6.2f", AD_value);
 //		LCDMoveCursor(1,0); LCDPrintString(value);
 	}
 	return 0;
 }
+
+void __attribute__((interrupt,auto_psv)) _T3Interrupt(void){
+    IFS0bits.T3IF = 0;
+
+}
+
