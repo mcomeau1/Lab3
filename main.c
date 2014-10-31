@@ -5,6 +5,7 @@
 
 #include "p24fj64ga002.h"
 #include <stdio.h>
+#include <string.h>
 #include "lcd.h"
 
 
@@ -31,26 +32,33 @@ _CONFIG2( IESO_OFF & SOSCSEL_SOSC & WUTSEL_LEG & FNOSC_PRIPLL & FCKSM_CSDCMD & O
 #define PLLMODE         4               	  // On-chip PLL setting (Fosc)
 #define FCY             (XTFREQ*PLLMODE)/2    // Instruction Cycle Frequency (Fosc/2)
 // ******************************************************************************************* //
-int main(void){
-	int ADC_value;
-        float temp;
- 	char value[8];
-        char period1[5];
-        char period2[5];
-        TMR3 = 0;
-        PR3 = 512;
-        IFS0bits.T3IF = 0;
-        IEC0bits.T3IE = 1;
-        T3CON = 0x0030;
+volatile int state = 0;
+volatile int nextState = 1;
 
-        OC1CON = 0x1D;
-        OC1R = 0;
-        OC1RS = PR3;
-        OC2CON = 0x1D;
-        OC2R = 0;
-        OC2RS = PR3;
-        RPOR4bits.RP8R = 18;
-        RPOR4bits.RP9R = 19;
+//void wait()
+//{
+//    TMR1 = 0;
+//    PR1 = 580;
+//    IFS0bits.T1IF = 0;
+//    T1CON = 0x8030;
+//    while(IFS0bits.T1IF == 0);
+//    T1CONbits.TON = 0;
+//}
+int main(void){
+	double ADC_value;
+        char value[8];
+        char Val1[8], Val2[8];
+        TMR2 = 0;
+        PR2 = 512;
+        IFS0bits.T2IF = 0;
+        IEC0bits.T2IE = 1;
+        T2CON = 0x8030;
+
+        OC1CON = 0x6;
+        OC1RS = 0;
+        OC2CON = 0x6;
+        OC2RS = 0;
+        
 	LCDInitialize( );
 
 	AD1PCFG &= 0xFFDF;	 	// AN0 input pin is analog
@@ -58,47 +66,90 @@ int main(void){
 	AD1CON3 = 0x0101;
 	AD1CON1 = 0x20E4;
 	AD1CHS = 5; 		// Configure input channels
-	AD1CSSL = 5; 		// No inputs is scanned
+	AD1CSSL = 0; 		// No inputs is scanned
+
 	IFS0bits.AD1IF = 0; // Clear A/D conversion interrupt.
 	AD1CON1bits.ADON = 1; // Turn on A/D
-        temp = PR3 * 1.0;
+        TRISBbits.TRISB5 = 1;
+        CNEN2bits.CN27IE = 1;
+        IFS1bits.CNIF = 0;
+        IEC1bits.CNIE = 1;
 	while(1){
-            TMR3 = 0;
+        switch(state)
+        {
+        case 0:
+            TRISBbits.TRISB10 = 0;
+            TRISBbits.TRISB11 = 0;
+            TRISBbits.TRISB8 = 0;
+            TRISBbits.TRISB9 = 0;
+            RPOR4bits.RP8R = NULL;
+            RPOR4bits.RP9R = NULL;
+            RPOR5bits.RP10R = NULL;
+            RPOR5bits.RP11R = NULL;
+            nextState = 1;
+            break;
+
+        case 1:
+            TRISBbits.TRISB8 = 0;
+            TRISBbits.TRISB9 = 0;
+            RPOR5bits.RP10R = 18;
+            RPOR5bits.RP11R = 19;
+            nextState = 2;
+            break;
+
+        case 2:
+            TRISBbits.TRISB10 = 0;
+            TRISBbits.TRISB11 = 0;
+            TRISBbits.TRISB8 = 0;
+            TRISBbits.TRISB9 = 0;
+            RPOR4bits.RP8R = NULL;
+            RPOR4bits.RP9R = NULL;
+            RPOR5bits.RP10R = NULL;
+            RPOR5bits.RP11R = NULL;
+            nextState = 3;
+            break;
+
+        case 3:
+            TRISBbits.TRISB10 = 0;
+            TRISBbits.TRISB11 = 0;
+            RPOR4bits.RP8R = 18;
+            RPOR4bits.RP9R = 19;
+            nextState = 0;
+            break;
+       }
+
             while (IFS0bits.AD1IF ==0){};     // AD1CON1bits.DONE can be checked instead
             IFS0bits.AD1IF = 0;
-            ADC_value = ADC1BUF0;
-            sprintf(value, "%6d", 1023 - ADC_value);
-            LCDMoveCursor(0,0); LCDPrintString(value);
-            
-            T3CONbits.TON = 1;
-            OC1RS = ADC_value;
-            OC2RS = 1023 - ADC_value;
 
-            while(IFS0bits.T3IF == 0);
-            T3CONbits.TON = 0;
-            IFS0bits.T3IF = 0;
-            sprintf(period1, "%.2f", OC1RS/temp);
-            sprintf(period2, "%.2f", OC2RS/temp);
-            if(strcmp(period1, "1.00") > 0)
+            ADC_value = ADC1BUF0 * 3.3 / 1023;   // 0 <= ADC <= 3.3
+            sprintf(value, "%.3f", ADC_value );
+            LCDMoveCursor(0,0); LCDPrintString(value);
+
+            OC1RS = ADC1BUF0;
+            OC2RS = 1023 - ADC1BUF0;
+
+            if(OC1RS > 512)
             {
-                strcpy(period1,"1.00");
+                OC1RS = 512;
             }
-            if(strcmp(period2, "1.00") > 0)
+            else if(OC2RS > 512)
             {
-                strcpy(period2,"1.00");
+                OC2RS = 512;
             }
-            LCDMoveCursor(1,0); LCDPrintString("        ");
-            LCDMoveCursor(1,0); LCDPrintString(period1);
-            LCDPrintString(period2);
-//		AD_value = (ADC_value * 3.3)/1024;
-//		sprintf(value, "%6.2f", AD_value);
-//		LCDMoveCursor(1,0); LCDPrintString(value);
+            sprintf(Val1, "%3d", 100 * OC1RS / 512);
+            LCDMoveCursor(1,0); LCDPrintString(Val1);
+            sprintf(Val2, "%3d", 100 * OC2RS / 512);
+            LCDMoveCursor(1,4); LCDPrintString(Val2);
 	}
 	return 0;
 }
 
-void __attribute__((interrupt,auto_psv)) _T3Interrupt(void){
-    IFS0bits.T3IF = 0;
-
+void __attribute__((interrupt,auto_psv)) _T2Interrupt(void){
+    IFS0bits.T2IF = 0;
 }
 
+void __attribute__((interrupt,auto_psv)) _CNInterrupt(void){
+    IFS1bits.CNIF = 0;
+    state = nextState;
+    while(PORTBbits.RB5 == 0);
+}
